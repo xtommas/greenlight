@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/xtommas/greenlight/internal/data"
 	"github.com/xtommas/greenlight/internal/validator"
@@ -60,13 +60,15 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	movie := data.Movie{
-		Id:        id,
-		CreatedAt: time.Now(),
-		Title:     "Blade Runner 2049",
-		Runtime:   163,
-		Genres:    []string{"action", "drama", "mystery", "sci-fi", "thriller"},
-		Version:   1,
+	movie, err := app.models.Movies.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
