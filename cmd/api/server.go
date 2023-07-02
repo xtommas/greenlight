@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,6 +21,9 @@ func (app *application) serve() error {
 		WriteTimeout: 30 * time.Second,
 	}
 
+	// shutdown channel to receive erros returned by Shutdown()
+	shutdownError := make(chan error)
+
 	go func() {
 		// create a quit channel that carries os.Signal values
 		quit := make(chan os.Signal, 1)
@@ -29,11 +34,16 @@ func (app *application) serve() error {
 		// read the signal from the quit channel
 		s := <-quit
 
-		app.logger.PrintInfo("caught signal", map[string]string{
+		app.logger.PrintInfo("shutting down server", map[string]string{
 			"signal": s.String(),
 		})
 
-		os.Exit(0)
+		// ctx to give any pending requests 5 seconds of 'grace period' to finish
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// returns nil if the graceful shutdown was successful or an error
+		shutdownError <- srv.Shutdown(ctx)
 	}()
 
 	app.logger.PrintInfo("starting server", map[string]string{
@@ -41,5 +51,20 @@ func (app *application) serve() error {
 		"env":  app.config.env,
 	})
 
-	return srv.ListenAndServe()
+	// Shutdown() will cause ListenAndServe() to return an http.ErrServerClosed error
+	err := srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	err = <-shutdownError
+	if err != nil {
+		return err
+	}
+
+	app.logger.PrintInfo("stopped server", map[string]string{
+		"addr": srv.Addr,
+	})
+
+	return nil
 }
