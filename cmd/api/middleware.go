@@ -54,31 +54,34 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 	}()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// extract the ip from the request
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
+		if app.config.limiter.enabled {
+			// extract the ip from the request
+			ip, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				app.serverErrorResponse(w, r, err)
+				return
+			}
 
-		// Lock the mutex to prevent the code from being executed concurrently
-		mu.Lock()
+			// Lock the mutex to prevent the code from being executed concurrently
+			mu.Lock()
 
-		if _, found := clients[ip]; !found {
-			clients[ip] = &client{limiter: rate.NewLimiter(2, 4)}
-		}
+			if _, found := clients[ip]; !found {
+				clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(app.config.limiter.rps), app.config.limiter.burst)}
+			}
 
-		clients[ip].lastSeen = time.Now()
+			clients[ip].lastSeen = time.Now()
 
-		// see if the request is permitted or not
-		if !clients[ip].limiter.Allow() {
+			// see if the request is permitted or not
+			if !clients[ip].limiter.Allow() {
+				mu.Unlock()
+				// return 429 Too Many Requests
+				app.rateLimitExceededResponse(w, r)
+				return
+			}
+
 			mu.Unlock()
-			// return 429 Too Many Requests
-			app.rateLimitExceededResponse(w, r)
-			return
-		}
 
-		mu.Unlock()
+		}
 
 		next.ServeHTTP(w, r)
 	})
