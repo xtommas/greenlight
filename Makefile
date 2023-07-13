@@ -1,3 +1,5 @@
+include .envrc
+
 ## help: print this help message
 .PHONY: help
 help:
@@ -12,12 +14,12 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api
+	go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql:
-	psql "postgres://greenlight:password@localhost/greenlight?sslmode=disable"
+	psql ${GREENLIGHT_DB_DSN}
 
 ## db/migrations/new name=$1: create a new database migration
 .PHONY: db/migrations/new
@@ -29,4 +31,4 @@ db/migrations/new:
 .PHONY: db/migrations/up
 db/migrations/up: confirm
 	@echo 'Running up migrations...'
-	migrate --path ./migrations --database "postgres://greenlight:password@localhost/greenlight?sslmode=disable" up
+	migrate --path ./migrations --database ${GREENLIGHT_DB_DSN} up
