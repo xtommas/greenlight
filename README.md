@@ -15,7 +15,7 @@ _Greenlight_ is a movies REST API written in Go, with a PostgreSQL database. It 
 | PUT    | /v1/users/password        | Update the password for a specific user         |
 | POST   | /v1/tokens/authentication | Generate a new authentication token             |
 | POST   | /v1/tokens/password-reset | Generate a new password-reset token             |
-| GET    | /debug/vars               | Generate a new password-reset token             |
+| GET    | /debug/vars               | Display application metrics                     |
 
 ## ⚙️ Setup
 
